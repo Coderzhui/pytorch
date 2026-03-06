@@ -721,6 +721,11 @@ print(t.is_pinned())
             torch.backends.cuda.preferred_blas_library("default")
             _check_default()
 
+    def test_current_solver_handle(self):
+        handle = torch.cuda.current_solver_handle()
+        self.assertIsInstance(handle, int)
+        self.assertNotEqual(handle, 0)
+
     @unittest.skipIf(TEST_CUDAMALLOCASYNC, "temporarily disabled for async")
     @serialTest()
     @blas_library_context("cublas")
