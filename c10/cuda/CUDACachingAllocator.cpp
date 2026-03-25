@@ -165,11 +165,12 @@ struct Block;
 struct PrivatePool;
 typedef bool (*Comparison)(const Block*, const Block*);
 static bool BlockComparatorSize(const Block* a, const Block* b);
+static bool BlockComparatorRegistrationCounter(const Block* a, const Block* b);
 static bool BlockComparatorAddress(const Block* a, const Block* b);
 
 struct BlockPool {
   BlockPool(bool small, PrivatePool* private_pool = nullptr)
-      : blocks(BlockComparatorSize),
+      : blocks(BlockComparatorRegistrationCounter),
         unmapped(BlockComparatorAddress),
         is_small(small),
         owner_PrivatePool(private_pool) {}
@@ -1005,6 +1006,17 @@ bool BlockComparatorSize(const Block* a, const Block* b) {
   }
   return (uintptr_t)a->ptr < (uintptr_t)b->ptr;
 }
+
+bool BlockComparatorRegistrationCounter(const Block* a, const Block* b) {
+  if (a->stream != b->stream) {
+    return (uintptr_t)a->stream < (uintptr_t)b->stream;
+  }
+  if (a->size != b->size) {
+    return a->size < b->size;
+  }
+  return a->registration_counter < b->registration_counter;
+}
+
 bool BlockComparatorAddress(const Block* a, const Block* b) {
   if (a->stream != b->stream) {
     return (uintptr_t)a->stream < (uintptr_t)b->stream;
@@ -2651,7 +2663,6 @@ class DeviceCachingAllocator {
           id == mempool_id) {
         segment_info.owner_private_pool_id = id;
       }
-      segment_info.registration_counter = head_block->registration_counter;
 
       const Block* block = head_block;
       while (block != nullptr && block->mapped) {
