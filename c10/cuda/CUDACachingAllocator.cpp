@@ -2652,6 +2652,7 @@ class DeviceCachingAllocator {
           id == mempool_id) {
         segment_info.owner_private_pool_id = id;
       }
+      segment_info.registration_counter = head_block->registration_counter;
 
       const Block* block = head_block;
       while (block != nullptr && block->mapped) {
