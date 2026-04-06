@@ -537,6 +537,7 @@ def foreach_reduce(
     partial_reduce_output: torch.Tensor | None,  # only used for HSDP
     all_reduce_hook: Callable[[torch.Tensor], None] | None,
     force_sum_reduction_for_comms: bool = False,
+    prev_all_reduce_state: object | None = None,
 ) -> tuple[
     torch.Tensor,
     torch.Event,
@@ -635,6 +636,9 @@ def foreach_reduce(
         if all_reduce_group is not None:  # HSDP or DDP/replicate
             # Accumulations must run in the reduce-scatter stream
             if not all_reduce_grads:
+                if prev_all_reduce_state is not None:
+                    with device_handle.stream(all_reduce_stream):
+                        del prev_all_reduce_state
                 if partial_reduce_output is not None:
                     partial_reduce_output += reduce_output
                 else:
@@ -661,7 +665,6 @@ def foreach_reduce(
                     op=all_reduce_op,
                 )
                 all_reduce_input = reduce_output
-                all_reduce_event = all_reduce_stream.record_event()
     # -- END: ops in reduce_scatter stream
 
     if all_reduce_hook is not None:
@@ -675,8 +678,23 @@ def foreach_reduce(
     # -- END: ops post reduce_scatter
 
     with device_handle.stream(post_reduce_stream):
+        # Free previous layer's reduce-scatter output buffer on the AR
+        # stream. The AR stream is ordered, so the previous layer's
+        # all-reduce + div + dtype_cast are guaranteed complete here.
+        # Freeing on this stream (not the default stream) avoids blocking
+        # backward compute and preserves all-reduce pipelining.
+        del prev_all_reduce_state
         _div_if_needed(reduce_output, postdivide_factor)
         reduce_output = _to_dtype_if_needed(reduce_output, orig_dtype)
+        if all_reduce_input is not None and reduce_output is not all_reduce_input:
+            # The dtype cast created a new tensor, so the original fp32
+            # all-reduce buffer has no refs from param grads. Keep it alive
+            # via all_reduce_input until the next layer frees it.
+            all_reduce_event = post_reduce_stream.record_event()
+        else:
+            # No dtype cast (or no all-reduce): param grads already hold
+            # refs to the buffer, so no need to keep an extra reference.
+            all_reduce_input = None
         # View out and accumulate sharded gradients
         flat_grad_offset = 0  # [0, reduce_scatter_output_numel - 1]
         for padded_unsharded_size, fsdp_param in zip(
