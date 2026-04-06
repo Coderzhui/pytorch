@@ -590,6 +590,8 @@ class FSDPParamGroup:
                 all_reduce_stream = self.comm_ctx.all_reduce_stream
 
             self._wait_for_post_backward()
+            prev_all_reduce_state = self.comm_ctx.all_reduce_state
+            self.comm_ctx.all_reduce_state = None
             (
                 reduce_scatter_input,
                 reduce_scatter_event,
@@ -622,6 +624,7 @@ class FSDPParamGroup:
                 self._partial_reduce_output,
                 self._all_reduce_hook,
                 self.force_sum_reduction_for_comms,
+                prev_all_reduce_state,
             )
             self.comm_ctx.reduce_scatter_states.append(
                 ReduceScatterState(reduce_scatter_input, reduce_scatter_event)
@@ -657,14 +660,8 @@ class FSDPParamGroup:
         if self._post_reduce_event is not None:
             self.device_handle.current_stream().wait_event(self._post_reduce_event)
             self._post_reduce_event = None
-        if (
-            self.comm_ctx.all_reduce_state is not None
-            and self.comm_ctx.all_reduce_state.event is not None
-        ):
-            self.device_handle.current_stream().wait_event(
-                self.comm_ctx.all_reduce_state.event
-            )
-            self.comm_ctx.all_reduce_state = None
+        # all_reduce_state is freed on the AR stream inside foreach_reduce,
+        # not here, to avoid blocking the default stream.
 
     def _backward_prefetch(self) -> None:
         if self._training_state == TrainingState.PRE_BACKWARD:
