@@ -636,6 +636,9 @@ def foreach_reduce(
         if all_reduce_group is not None:  # HSDP or DDP/replicate
             # Accumulations must run in the reduce-scatter stream
             if not all_reduce_grads:
+                if prev_all_reduce_state is not None:
+                    with device_handle.stream(all_reduce_stream):
+                        del prev_all_reduce_state
                 if partial_reduce_output is not None:
                     partial_reduce_output += reduce_output
                 else:
