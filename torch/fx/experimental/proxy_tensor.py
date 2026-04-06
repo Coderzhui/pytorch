@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
 import logging
