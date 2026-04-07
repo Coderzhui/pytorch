@@ -285,7 +285,9 @@ def config_of(
 
     # On AMD/HIP, tag tensor args whose storage fits in 2GB so Triton
     # can use 32-bit pointer offsets and emit buffer load/store ops.
-    if pointer_range_override is not None:
+    if not config.triton.emit_pointer_range_32:
+        pointer_range_32 = ()
+    elif pointer_range_override is not None:
         pointer_range_32 = pointer_range_override
     elif torch.version.hip is not None:
         pointer_range_32 = tuple(
