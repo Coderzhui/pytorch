@@ -1909,7 +1909,8 @@ def fx_placeholder_vals(gm: torch.fx.GraphModule) -> list[object]:
 
 
 def fx_placeholder_targets(gm: torch.fx.GraphModule) -> list[str]:
-    return [n.target for n in gm.graph.nodes if n.op == "placeholder"]
+    # Placeholder nodes always have str targets
+    return [cast(str, n.target) for n in gm.graph.nodes if n.op == "placeholder"]
 
 
 # Given a GraphModule and arguments to run it with, evaluate that the guards

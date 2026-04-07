@@ -5,7 +5,7 @@ import traceback
 from collections import defaultdict
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, cast, Optional, Union
 
 from torch._utils_internal import signpost_event
 
@@ -528,9 +528,9 @@ def _get_custom_metadata(gm: GraphModule) -> str:
             if hasattr(node, "meta") and node.meta.get("custom", None):
                 custom_metadata.append((node.op, node.name, node.meta["custom"]))
             if node.op == "get_attr" and isinstance(
-                getattr(gm, node.target), GraphModule
+                getattr(gm, cast(str, node.target)), GraphModule
             ):
-                custom_metadata.append(helper(getattr(gm, node.target)))
+                custom_metadata.append(helper(getattr(gm, cast(str, node.target))))
         return custom_metadata
 
     return "\n".join(str(x) for x in helper(gm))

@@ -1,7 +1,7 @@
 import copy
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, NamedTuple, TYPE_CHECKING
+from typing import Any, cast, NamedTuple, TYPE_CHECKING
 
 import torch
 
@@ -59,8 +59,9 @@ def _replace_attributes(gm: GraphModule, replacement: torch.nn.Module) -> None:
 
     for node in gm.graph.nodes:
         if node.op == "call_module" or node.op == "get_attr":
-            gm_attr = try_get_attr(gm, node.target)
-            replacement_attr = try_get_attr(replacement, node.target)
+            str_target = cast(str, node.target)
+            gm_attr = try_get_attr(gm, str_target)
+            replacement_attr = try_get_attr(replacement, str_target)
 
             # CASE 1: This target already exists as an attribute in our
             # result GraphModule. Whether or not it exists in
@@ -73,9 +74,9 @@ def _replace_attributes(gm: GraphModule, replacement: torch.nn.Module) -> None:
             elif replacement_attr is not None:
                 new_attr = copy.deepcopy(replacement_attr)
                 if isinstance(replacement_attr, torch.nn.Module):
-                    gm.add_submodule(node.target, new_attr)
+                    gm.add_submodule(str_target, new_attr)
                 else:
-                    setattr(gm, node.target, new_attr)
+                    setattr(gm, str_target, new_attr)
 
             # CASE 3: The target doesn't exist as an attribute in `gm`
             # or `replacement`

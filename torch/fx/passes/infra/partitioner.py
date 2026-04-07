@@ -264,7 +264,8 @@ class CapabilityBasedPartitioner:
                 for user in node.users:
                     if (
                         user.op != "call_function"
-                        or _get_qualified_name(user.target) != "_operator.getitem"
+                        or _get_qualified_name(user.target)
+                        != "_operator.getitem"  # pyrefly: ignore[bad-argument-type]
                     ):  # type: ignore[arg-type]
                         is_tuple_output = False
                         break

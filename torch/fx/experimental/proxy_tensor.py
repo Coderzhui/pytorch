@@ -2144,7 +2144,7 @@ class _SelectiveDecomposeInterpreter(fx.Interpreter):
                     else:
                         new_arg = arg
                     new_args.append(new_arg)
-                node.args = tuple(new_args)
+                node.args = tuple(new_args)  # pyrefly: ignore[bad-argument-type]
 
         return _SelectiveDecomposeInterpreter(
             gm, should_decompose, decomposition_table, **kwargs

@@ -1,5 +1,6 @@
 # mypy: allow-untyped-defs
 import operator
+from typing import cast
 
 import torch
 from torch._higher_order_ops.effects import _get_schema, with_effects
@@ -183,7 +184,9 @@ def _remove_effect_tokens(ep: ExportedProgram) -> ExportedProgram:
             # Remove tokens from the output node
             if len(output_tokens) > 0:
                 output_node = next(reversed(module.graph.find_nodes(op="output")))
-                output_args = output_node.args[0]
+                output_args = cast(
+                    tuple[torch.fx.node.Argument, ...], output_node.args[0]
+                )
                 if len(output_args) < len(output_tokens):
                     raise AssertionError(
                         f"{output_args} output arguments found\n"

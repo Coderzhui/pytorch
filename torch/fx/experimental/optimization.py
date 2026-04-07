@@ -13,7 +13,7 @@ import torch.fx as fx
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.mkldnn as th_mkldnn
-from torch.fx.node import Argument, Target
+from torch.fx.node import Argument, Node, Target
 from torch.fx.passes.shape_prop import ShapeProp
 from torch.nn.utils.fusion import fuse_conv_bn_eval, fuse_linear_bn_eval
 
@@ -97,19 +97,20 @@ def fuse(model: torch.nn.Module, inplace=False, no_trace=False) -> torch.nn.Modu
     for pattern in patterns:
         for node in new_graph.nodes:
             if matches_module_pattern(pattern, node, modules):
-                if len(node.args[0].users) > 1:
+                prev_node = cast(Node, node.args[0])
+                if len(prev_node.users) > 1:
                     # Output of conv/linear is used by other nodes
                     continue
-                first_layer = modules[node.args[0].target]
-                bn = modules[node.target]
+                first_layer = modules[cast(str, prev_node.target)]
+                bn = modules[cast(str, node.target)]
                 if not bn.track_running_stats:
                     continue
                 if pattern[0] in [nn.Conv1d, nn.Conv2d, nn.Conv3d]:
                     fused_layer = fuse_conv_bn_eval(first_layer, bn)
                 else:  # nn.Linear
                     fused_layer = fuse_linear_bn_eval(first_layer, bn)
-                replace_node_module(node.args[0], modules, fused_layer)
-                node.replace_all_uses_with(node.args[0])
+                replace_node_module(prev_node, modules, fused_layer)
+                node.replace_all_uses_with(prev_node)
                 new_graph.erase_node(node)
     return fx.GraphModule(fx_model, new_graph)
 
@@ -252,7 +253,9 @@ def gen_mkl_autotuner(example_inputs, iters=10, warmup=1):
             ShapeProp(fx_model).propagate(example_inputs)
         sample_inputs = [torch.randn(node.shape) for node in input_nodes]  # type: ignore[attr-defined]
         output_args = cast(list[fx.Node], [node.args[0] for node in graph.end_nodes])
-        submodule = extract_subgraph(fx_model, graph.nodes, input_nodes, output_args)
+        submodule = extract_subgraph(
+            fx_model, graph.nodes, input_nodes, output_args
+        )  # pyrefly: ignore[bad-argument-type]
 
         def benchmark(f):
             for _ in range(warmup):
@@ -373,7 +376,7 @@ def optimize_for_inference(
     for node in list(fx_graph.nodes):
         supports_mkldnn = MklSupport.NO
         if node.op == "call_module":
-            cur_module = modules[node.target]
+            cur_module = modules[cast(str, node.target)]
             if type(cur_module) in mkldnn_supported:
                 supports_mkldnn = MklSupport.YES
                 sample_parameter = next(cur_module.parameters(), None)
@@ -392,7 +395,7 @@ def optimize_for_inference(
 
         if supports_mkldnn != MklSupport.NO:
             if supports_mkldnn == MklSupport.UNKNOWN:
-                if not any(arg.target == "to_dense" for arg in node.args):
+                if not any(cast(Node, arg).target == "to_dense" for arg in node.args):
                     continue
             with fx_graph.inserting_before(node):
                 mkldnn_args = fx.map_arg(
@@ -413,7 +416,7 @@ def optimize_for_inference(
     # optimizes all a -> to_dense -> to_mkldnn -> b patterns into a -> b
     for node in fx_graph.nodes:
         if node.op == "call_method" and node.target == "to_dense":
-            prv_node = node.args[0]
+            prv_node = cast(Node, node.args[0])
             users = list(node.users)
             for user in users:
                 if user.op == "call_method" and user.target == "to_mkldnn":

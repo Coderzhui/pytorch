@@ -1,9 +1,16 @@
 # mypy: allow-untyped-defs
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, TYPE_CHECKING
 
 import torch
 from torch.fx import Graph, GraphModule, Node
 from torch.fx.passes.infra.pass_base import PassBase, PassResult
+
+
+if TYPE_CHECKING:
+    from torch.fx.node import Target
+
 from torch.utils._pytree import tree_flatten
 
 
@@ -94,10 +101,10 @@ class CSEPass(PassBase):
             Node, Node
         ] = {}  # map from node in the old graph to node in the new graph
         hash_env: dict[
-            tuple[torch._ops.OpOverload, int], Node
+            tuple[Target, int], Node
         ] = {}  # map from hash to a node in the new graph
         token_map: dict[
-            tuple[torch._ops.OpOverload, int], dict[str, Any]
+            tuple[Target, int], dict[str, Any]
         ] = {}  # map from hash to token
         for n in graph_module.graph.nodes:
             # The placeholder, output, and get_attr nodes are copied to the new graph without change

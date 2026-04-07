@@ -18,7 +18,9 @@ def _split_to_graph_and_name_node_map(
         if n.op == "output":
             if gm._out_spec is None:
                 raise AssertionError("gm._out_spec is None")
-            output = tree_unflatten(n.args[0], gm._out_spec)
+            output = tree_unflatten(
+                n.args[0], gm._out_spec
+            )  # pyrefly: ignore[bad-argument-type]
             if not isinstance(output, tuple):
                 raise AssertionError("Expecting the pattern graph to return a tuple")
             if len(output) < 2:

@@ -127,8 +127,12 @@ class SubgraphMatcher:
         if not isinstance(gn.target, str):
             raise AssertionError(f"gn.target {gn.target} must be a string.")
 
-        pn_value = torch.fx.graph_module._get_attr(pn.graph.owning_module, pn.target)
-        gn_value = torch.fx.graph_module._get_attr(gn.graph.owning_module, gn.target)
+        pn_value = torch.fx.graph_module._get_attr(
+            pn.graph.owning_module, pn.target
+        )  # pyrefly: ignore[bad-argument-type]
+        gn_value = torch.fx.graph_module._get_attr(
+            gn.graph.owning_module, gn.target
+        )  # pyrefly: ignore[bad-argument-type]
 
         if type(pn_value) is not type(gn_value):
             return False

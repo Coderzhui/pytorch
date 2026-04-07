@@ -242,7 +242,7 @@ class InterpreterModule(_SubmoduleBase, torch.nn.Module):
         colored=False,
     ):
         return _print_readable(
-            self,
+            self,  # pyrefly: ignore[bad-argument-type]
             "InterpreterModule",
             print_output,
             include_stride,
@@ -783,7 +783,7 @@ class UnflattenedModule(_SubmoduleBase, torch.nn.Module):
         colored=False,
     ):
         return _print_readable(
-            self,
+            self,  # pyrefly: ignore[bad-argument-type]
             "UnflattenedModule",
             print_output,
             include_stride,
@@ -862,7 +862,7 @@ def _inplace_buffer_and_input_mutations(
         raise AssertionError(
             f"expected output node with op='output' and 1 arg, got op={output_node.op!r} with {len(output_node.args)} args"
         )
-    return_args = output_node.args[0]
+    return_args = cast(tuple[torch.fx.Node, ...], output_node.args[0])
 
     input_name_to_node = {
         node.name: node for node in graph.nodes if node.op == "placeholder"

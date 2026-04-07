@@ -3,7 +3,7 @@ import inspect
 import logging
 from collections import OrderedDict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import torch
 from torch.fx._compatibility import compatibility
@@ -351,9 +351,9 @@ def split_module(
                     raise AssertionError(
                         f"Expected 1 arg for _exit_autocast, got {len(node.args)}"
                     )
-                autocast_regions[node.args[0]].add(split_callback(node))
-                active_autocasts.remove(node.args[0])
-                autocast_exits[node.args[0]] = node
+                autocast_regions[cast(Node, node.args[0])].add(split_callback(node))
+                active_autocasts.remove(cast(Node, node.args[0]))
+                autocast_exits[cast(Node, node.args[0])] = node
 
         if active_grad is not None:
             grad_regions[active_grad].add(split_callback(node))
@@ -510,15 +510,16 @@ def split_module(
             if node.op not in ["call_module", "get_attr"]:
                 target = node.target
             else:
-                target_attr = _get_attr_from_qualname(m, node.target)
-                target = node.target.replace(".", "_")
+                str_target = cast(str, node.target)
+                target_attr = _get_attr_from_qualname(m, str_target)
+                target = str_target.replace(".", "_")
                 partition.targets[target] = target_attr
                 # Fill in the passed-in mapping from new qualname to old qualname
                 if qualname_map is not None:
                     # When creating the split module later, the submodules will have
                     # path prefix matching the corresponding partition's submod_name
                     qualname = f"{partition.submod_name}.{target}"
-                    qualname_map[qualname] = node.target
+                    qualname_map[qualname] = str_target
 
             if not isinstance(gathered_args, tuple):
                 raise AssertionError(

@@ -6,7 +6,7 @@ import os
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, NamedTuple
+from typing import Any, cast, Literal, NamedTuple
 
 import torch
 from torch._logging import trace_structured
@@ -837,10 +837,10 @@ class _SplitterBase:
         bottleneck_module = ""
 
         for node in split_mod.graph.nodes:
-            if node.op == "call_module" and "acc" in node.target:
+            if node.op == "call_module" and "acc" in cast(str, node.target):
                 reports += f"\nProcessing acc submodule {node.target}\n"
 
-                submod = getattr(split_mod, node.target)
+                submod = getattr(split_mod, cast(str, node.target))
 
                 def get_submod_inputs(main_mod, submod, example_inputs):
                     sub_inputs = None
@@ -932,7 +932,9 @@ class _SplitterBase:
                 if user.op not in CALLABLE_NODE_OPS:
                     continue
 
-                if tag_id is None or (int(user.tag.split("_")[-1]) < tag_id):
+                if tag_id is None or (
+                    int(user.tag.split("_")[-1]) < tag_id
+                ):  # pyrefly: ignore[missing-attribute]
                     result[node].add(user)
 
         return result
@@ -974,9 +976,13 @@ class _SplitterBase:
         parent_nodes = set()
 
         for node in self.module.graph.nodes:
-            if node.op in CALLABLE_NODE_OPS and node.tag == tag:
+            if (
+                node.op in CALLABLE_NODE_OPS and node.tag == tag
+            ):  # pyrefly: ignore[missing-attribute]
                 for arg in node.all_input_nodes:
-                    if arg.op in CALLABLE_NODE_OPS and arg.tag != tag:
+                    if (
+                        arg.op in CALLABLE_NODE_OPS and arg.tag != tag
+                    ):  # pyrefly: ignore[missing-attribute]
                         parent_nodes.add(arg)
 
         return parent_nodes
@@ -1168,7 +1174,7 @@ class _SplitterBase:
         if remove_tag:
             for node in self.module.graph.nodes:
                 if hasattr(node, "tag"):
-                    del node.tag
+                    del node.tag  # pyrefly: ignore[missing-attribute]
         return split_module  # type: ignore[return-value]
 
     def __call__(self) -> torch.fx.GraphModule:

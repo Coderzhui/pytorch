@@ -10,7 +10,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, final, NamedTuple, TYPE_CHECKING
+from typing import Any, cast, final, NamedTuple, TYPE_CHECKING
 
 from torch._guards import tracing, TracingContext
 from torch._higher_order_ops.utils import autograd_not_implemented
@@ -851,7 +851,7 @@ def _common_getitem_elimination_pass(
             for node in list(module.graph.nodes):
                 if node.op == "call_function" and node.target is operator.getitem:
                     source, idx = node.args
-                    new_id = f"{node_id[source]}.{idx}"
+                    new_id = f"{node_id[cast(torch.fx.Node, source)]}.{idx}"
                     if new_id in getitems:
                         node.replace_all_uses_with(getitems[new_id])
                         for entry in module_call_graph:
@@ -977,7 +977,7 @@ def _get_updated_module_call_graph(
                     torch.ops.aten.to.device,
                     torch.ops.aten.to.dtype,
                 ]:
-                    old_target = old_node.args[0].name
+                    old_target = cast(torch.fx.Node, old_node.args[0]).name
                     if old_target not in provenance:
                         raise ValueError(
                             f"It looks like {old_target} is a tensor subclass. "
@@ -1593,7 +1593,9 @@ class ExportedProgram:
                 )
 
             new_output_specs = []
-            for i, node in enumerate(output_node.args[0]):
+            for i, node in enumerate(
+                cast(tuple[torch.fx.Node, ...], output_node.args[0])
+            ):
                 if i >= len(old_signature.output_specs):
                     raise AssertionError(
                         f"Number of outputs changed after transformation: got index {i} "

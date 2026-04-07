@@ -758,7 +758,9 @@ class Node(_NodeBase):
                 raise AssertionError(
                     "self.graph.owning_module not set for purity check"
                 )
-            target_mod = self.graph.owning_module.get_submodule(self.target)
+            target_mod = self.graph.owning_module.get_submodule(
+                self.target  # pyrefly: ignore[bad-argument-type]
+            )
             if target_mod is None:
                 raise AssertionError(
                     f"Did not find expected submodule target {self.target}"

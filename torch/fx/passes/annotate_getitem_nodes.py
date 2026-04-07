@@ -1,6 +1,8 @@
 import operator
+from typing import cast
 
 import torch
+from torch.fx.node import Node
 
 
 def annotate_getitem_nodes(graph: torch.fx.Graph) -> None:
@@ -17,13 +19,18 @@ def annotate_getitem_nodes(graph: torch.fx.Graph) -> None:
     """
     for node in graph.nodes:
         if node.target is operator.getitem:
-            sequence_node, index_node = node.args
+            sequence_node = cast(Node, node.args[0])
+            index_node = cast(int, node.args[1])
             if not sequence_node.type:
                 continue
             # container types
             if hasattr(sequence_node.type, "_name"):
-                parameterized_types = sequence_node.type.__args__
-                if sequence_node.type._name == "Tuple":
+                parameterized_types = (
+                    sequence_node.type.__args__
+                )  # pyrefly: ignore[missing-attribute]
+                if (
+                    sequence_node.type._name == "Tuple"
+                ):  # pyrefly: ignore[missing-attribute]
                     if len(parameterized_types) == 2 and isinstance(
                         parameterized_types[1], type(...)
                     ):
@@ -44,7 +51,9 @@ def annotate_getitem_nodes(graph: torch.fx.Graph) -> None:
                     node.type = parameterized_types[0]
             # Generic Alias Type
             elif hasattr(sequence_node.type, "__origin__"):
-                parameterized_types = sequence_node.type.__args__
+                parameterized_types = (
+                    sequence_node.type.__args__
+                )  # pyrefly: ignore[missing-attribute]
                 if sequence_node.type.__origin__ is tuple:
                     if len(parameterized_types) == 2 and isinstance(
                         parameterized_types[1], type(...)
@@ -69,5 +78,7 @@ def annotate_getitem_nodes(graph: torch.fx.Graph) -> None:
                 if sequence_node.type == torch.Tensor:
                     continue
                 sequence_node_field_types = sequence_node.type.__annotations__
-                field_name = sequence_node.type._fields[index_node]
+                field_name = sequence_node.type._fields[
+                    index_node
+                ]  # pyrefly: ignore[missing-attribute]
                 node.type = sequence_node_field_types[field_name]

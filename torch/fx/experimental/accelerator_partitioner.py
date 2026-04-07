@@ -328,7 +328,9 @@ class Partitioner:
         for node in nodes:
             if node.op == "output":
                 break
-            total_size_of_graph += node.size_bytes.total_size
+            total_size_of_graph += (
+                node.size_bytes.total_size
+            )  # pyrefly: ignore[missing-attribute]
         # Find the device with the max mem size
         device_with_max_mem = max(self.devices, key=lambda d: d.available_mem_bytes)
         # AOT based partition
@@ -749,7 +751,7 @@ class Partitioner:
                     total_size_of_input_nodes = get_extra_size_of(node, partition.nodes)
                     if total_size_of_input_nodes > available_mem_bytes:
                         raise RuntimeError(
-                            node.target + "is too large to fit into a device"
+                            str(node.target) + " is too large to fit into a device"
                         )
                 partition.add_node(node)
         reset_partition_in_sparse_nn(partition, new_partition=False)

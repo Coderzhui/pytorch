@@ -373,7 +373,8 @@ def insert_deferred_runtime_asserts(
                 cond = node.args[0] if node.args else node.kwargs.get("cond")
                 if (
                     cond == True  # noqa: E712
-                    or (assert_expr := _get_sym_val(cond)) in expr_to_proxy
+                    or (assert_expr := _get_sym_val(cond))
+                    in expr_to_proxy  # pyrefly: ignore[bad-argument-type]
                     and assert_expr in added_asserts
                 ):
                     arg = cond

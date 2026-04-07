@@ -73,7 +73,9 @@ def move_to_device_pass(
                 # move all the nodes kwargs with burnt-in device
                 if "device" in node.kwargs:
                     kwargs = node.kwargs.copy()
-                    kwargs["device"] = _get_new_device(kwargs["device"], location)
+                    kwargs["device"] = _get_new_device(
+                        kwargs["device"], location
+                    )  # pyrefly: ignore[bad-argument-type]
                     node.kwargs = kwargs
 
                 if (
@@ -82,7 +84,9 @@ def move_to_device_pass(
                 ):
                     args = list(node.args)
                     # pyrefly: ignore [unsupported-operation]
-                    args[1] = _get_new_device(args[1], location)
+                    args[1] = _get_new_device(
+                        args[1], location
+                    )  # pyrefly: ignore[bad-argument-type]
                     node.args = tuple(args)
 
                 # move all the tensor metadata

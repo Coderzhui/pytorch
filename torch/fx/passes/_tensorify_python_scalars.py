@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 
 from sympy import Integer, Number, Symbol
 from sympy.logic.boolalg import BooleanAtom
@@ -209,7 +209,7 @@ def tensorify_python_scalars(
                 and node.op == "call_function"
                 and node.target is torch.ops.aten._local_scalar_dense.default
             ):
-                source_tensor = node.args[0].meta["val"]
+                source_tensor = cast(fx.Node, node.args[0]).meta["val"]
                 dtype = source_tensor.dtype
 
                 if not isinstance(node.args[0], fx.Node):
@@ -278,7 +278,9 @@ def tensorify_python_scalars(
             # Look for functions to convert
 
             if node.op == "call_function" and (
-                replacement_op := SUPPORTED_OPS.get(node.target)
+                replacement_op := SUPPORTED_OPS.get(
+                    node.target
+                )  # pyrefly: ignore[bad-argument-type]
             ):
                 args: list[Any] = []
                 transform = False
@@ -376,7 +378,9 @@ def tensorify_python_scalars(
                     #
                     # It's better to guard on zf // 2 == 2.0 than zf == 5.0
 
-                    node.replace_all_uses_with(guard_scalar(val))
+                    node.replace_all_uses_with(
+                        guard_scalar(val)
+                    )  # pyrefly: ignore[bad-argument-type]
                     graph.erase_node(node)
 
     # Sometimes by the time we get to tensorify, there have already been

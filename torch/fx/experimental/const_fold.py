@@ -1,6 +1,7 @@
 # mypy: allow-untyped-defs
 import re
 from collections.abc import Callable
+from typing import cast
 
 import torch.fx
 from torch.fx.node import map_arg
@@ -118,9 +119,12 @@ def _inline_module(
     for inline_node in inline_mod.graph.nodes:
         if inline_node.op == "placeholder":
             replacement_mapping[inline_node] = (
-                call_mod_kwargs[inline_node.name]
-                if inline_node.name in call_mod_kwargs
-                else call_mod_args[ph_count]
+                cast(  # pyrefly: ignore[unsupported-operation]
+                    torch.fx.Node,
+                    call_mod_kwargs[inline_node.name]
+                    if inline_node.name in call_mod_kwargs
+                    else call_mod_args[ph_count],
+                )
             )
 
             ph_count += 1
@@ -144,16 +148,22 @@ def _inline_module(
                     and isinstance(user.args[1], int)
                 ]
 
-            call_mod_node_to_replace.replace_all_uses_with(output_replacements)
+            call_mod_node_to_replace.replace_all_uses_with(
+                output_replacements
+            )  # pyrefly: ignore[bad-argument-type]
 
             # Inline getitem nodes that now index into the tuple literal
             for user in getitem_users:
                 idx = user.args[1]
                 if not isinstance(idx, int):
                     raise AssertionError(f"Expected int index, got {type(idx)}")
-                user.replace_all_uses_with(output_replacements[idx])
+                replacement = cast(  # pyrefly: ignore[unsupported-operation]
+                    torch.fx.Node,
+                    output_replacements[idx],  # pyrefly: ignore[bad-index]
+                )
+                user.replace_all_uses_with(replacement)
                 gm.graph.erase_node(user)
-                replacement_mapping[user] = output_replacements[idx]
+                replacement_mapping[user] = replacement
 
             continue
 
@@ -225,7 +235,7 @@ def split_const_subgraphs(
             if (
                 node.op == "call_module"
                 # pyrefly: ignore [not-callable]
-                and (submodule := module.get_submodule(node.target))
+                and (submodule := module.get_submodule(cast(str, node.target)))
                 and isinstance(submodule, torch.fx.GraphModule)
             ):
                 return _subgraph_has_impure_ops(submodule)
@@ -264,7 +274,7 @@ def split_const_subgraphs(
         if (
             node.op == "call_module"
             # pyrefly: ignore [not-callable]
-            and (target_mod := mod_traced.get_submodule(node.target))
+            and (target_mod := mod_traced.get_submodule(cast(str, node.target)))
             and isinstance(target_mod, torch.fx.GraphModule)
             and _subgraph_has_impure_ops(target_mod)
         ):

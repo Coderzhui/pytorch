@@ -211,7 +211,9 @@ class _MinimizerBase:
             self.b_outputs[output_node.args[0].name] = b_result
         # Multiple outputs
         else:
-            for i, arg in enumerate(output_node.args[0]):
+            for i, arg in enumerate(
+                cast(tuple[torch.fx.Node, ...], output_node.args[0])
+            ):
                 self.a_outputs[arg.name] = a_result[i]
                 self.b_outputs[arg.name] = b_result[i]
 
@@ -282,15 +284,15 @@ class _MinimizerBase:
                 continue
 
             if node in selected_nodes:
-                node.tag = "minimize"
+                node.tag = "minimize"  # pyrefly: ignore[missing-attribute]
             elif any(
-                n.tag in {"minimize", "main_1"}
+                n.tag in {"minimize", "main_1"}  # pyrefly: ignore[missing-attribute]
                 for n in node.all_input_nodes
                 if n.op in CALLABLE_NODE_OPS
             ):
-                node.tag = "main_1"
+                node.tag = "main_1"  # pyrefly: ignore[missing-attribute]
             else:
-                node.tag = "main_0"
+                node.tag = "main_0"  # pyrefly: ignore[missing-attribute]
 
     def _build_submodule(self, nodes: NodeSet) -> tuple[torch.fx.GraphModule, str]:
         """

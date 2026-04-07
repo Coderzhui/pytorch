@@ -11,7 +11,7 @@ import warnings
 from collections.abc import Callable
 from contextlib import contextmanager, ExitStack, nullcontext
 from itertools import chain
-from typing import Any, TYPE_CHECKING, TypeAlias
+from typing import Any, cast, TYPE_CHECKING, TypeAlias
 from unittest import mock
 
 
@@ -1623,7 +1623,7 @@ def _strict_export(
     # to update "val"
     for node in gm_torch_level.graph.nodes:
         if node.op == "get_attr" and "val" not in node.meta:
-            attr = getattr(gm_torch_level, node.target)
+            attr = getattr(gm_torch_level, cast(str, node.target))
             # Checks if it is not a HigherOrderOp branch or a module
             if not isinstance(attr, torch.nn.Module):
                 if dynamo_fake_mode is None:

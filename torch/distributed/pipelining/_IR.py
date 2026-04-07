@@ -8,7 +8,7 @@ from collections.abc import Callable
 from enum import Enum
 from inspect import Parameter, Signature, signature
 from types import MethodType
-from typing import Any
+from typing import Any, cast
 
 import torch
 import torch.fx as fx
@@ -713,10 +713,11 @@ class Pipe(torch.nn.Module):
         get_attr_nodes: dict[str, fx.Node] = {}
         for node in traced.graph.nodes:  # type: ignore[union-attr]
             if node.op == "get_attr":
-                get_attr_nodes.setdefault(node.target, node)
+                str_target = cast(str, node.target)
+                get_attr_nodes.setdefault(str_target, node)
 
-                if get_attr_nodes[node.target] != node:
-                    node.replace_all_uses_with(get_attr_nodes[node.target])
+                if get_attr_nodes[str_target] != node:
+                    node.replace_all_uses_with(get_attr_nodes[str_target])
                     traced.graph.erase_node(node)  # type: ignore[operator, union-attr]
 
         # avoid looking at next node by keeping track of previous pipe_split
@@ -957,7 +958,11 @@ class Pipe(torch.nn.Module):
                     for node in _mod.graph.nodes:
                         if node.op == "get_attr":
                             # get_attr might get access deeper level attribute
-                            fqn = scope + "." + node.target if scope else node.target
+                            fqn = (
+                                scope + "." + cast(str, node.target)
+                                if scope
+                                else cast(str, node.target)
+                            )
                             unused_attributes.discard(fqn)
                 for _name, _submod in _mod.named_children():
                     stack.append((scope + "." + _name if scope else _name, _submod))

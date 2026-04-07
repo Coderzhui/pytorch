@@ -1,6 +1,7 @@
 # mypy: allow-untyped-defs
 import itertools
 import operator
+from typing import Any, cast
 
 import torch
 from torch.fx._symbolic_trace import symbolic_trace
@@ -104,8 +105,8 @@ def merge_matmul(in_mod: torch.nn.Module):
     """
     gm = symbolic_trace(in_mod)
 
-    rhs_users: dict[Node, list[Node]] = {}
-    lhs_users: dict[Node, list[Node]] = {}
+    rhs_users: dict[Any, list[Node]] = {}
+    lhs_users: dict[Any, list[Node]] = {}
 
     # Populate rhs_users and lhs_users - maps from LHS/RHS matrix multiply operands to
     # the matmul of which they are the LHS/RHS.
@@ -113,16 +114,17 @@ def merge_matmul(in_mod: torch.nn.Module):
         if node.op != "call_function" or node.target is not torch.matmul:
             continue
 
-        lhs, rhs = node.args
+        lhs = cast(Node, node.args[0])
+        rhs = cast(Node, node.args[1])
 
         # TODO: Properly handle aliasing caused by get_attr. For now,
         # use the attribute name as the operand if the node is a
         # get_attr.
-        lhs = lhs.target if lhs.op == "get_attr" else lhs
-        rhs = rhs.target if rhs.op == "get_attr" else rhs
+        lhs_key = lhs.target if lhs.op == "get_attr" else lhs
+        rhs_key = rhs.target if rhs.op == "get_attr" else rhs
 
-        lhs_users.setdefault(lhs, []).append(node)
-        rhs_users.setdefault(rhs, []).append(node)
+        lhs_users.setdefault(lhs_key, []).append(node)
+        rhs_users.setdefault(rhs_key, []).append(node)
 
     for rhs, mms in rhs_users.items():
         # There must be at least matmuls for a merge to make sense.
