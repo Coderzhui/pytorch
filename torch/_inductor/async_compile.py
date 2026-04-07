@@ -51,6 +51,7 @@ from torch._inductor.runtime.compile_tasks import (
     _set_triton_libdevice_path,
     _set_triton_ptxas_path,
     _worker_compile_triton,
+    _worker_compile_triton_thread,
 )
 from torch._inductor.utils import clear_on_fresh_cache
 from torch._inductor.virtualized import V
@@ -273,6 +274,7 @@ class AsyncCompile:
             if config.worker_start_method == "spawn":
                 # Avoid creating pools in the spawned subprocs themselves:
                 os.environ["TORCH_WARM_POOL"] = "0"
+            # Only need pre-fork setup for process pools, not thread pools
             pre_fork_setup()
             ctx = multiprocessing.get_context(config.worker_start_method)
             pool = TrackedProcessPoolExecutor(
@@ -289,6 +291,49 @@ class AsyncCompile:
         _pool_set.add(pool)
         return pool
 
+    @staticmethod
+    @functools.lru_cache(1)
+    def thread_pool() -> ThreadPoolExecutor:
+        """
+        Thread pool for Triton compilation in nogil mode.
+
+        Separate from pool() to allow different sizing/configuration
+        for CPU-intensive Triton compilation workloads.
+        """
+        assert get_compile_threads() > 1
+        log.info(
+            "Creating thread pool with %d workers for nogil Triton compilation",
+            get_compile_threads(),
+        )
+        return ThreadPoolExecutor(
+            get_compile_threads(),
+            thread_name_prefix="triton_compile_",
+        )
+
+    @classmethod
+    def should_use_thread_workers(cls) -> bool:
+        """
+        Determine if thread workers should be used instead of process workers.
+
+        Returns True when running free-threaded Python or when explicitly
+        configured via compile_worker_mode.
+        """
+        from torch._inductor.utils import should_use_thread_workers
+
+        return should_use_thread_workers()
+
+    @classmethod
+    def get_worker_pool(cls) -> ThreadPoolExecutor | AnyPool:
+        """
+        Get the appropriate worker pool based on configuration.
+
+        Returns thread pool for nogil mode, process pool otherwise.
+        """
+        if cls.should_use_thread_workers():
+            return cls.thread_pool()
+        else:
+            return cls.process_pool()
+
     @classmethod
     def warm_pool(cls) -> None:
         if get_compile_threads() <= 1:
@@ -297,7 +342,11 @@ class AsyncCompile:
         # Pool is created on first access. Note for a SubprocPool, the sidecar process starts,
         # but its ProcessPoolExecutor does not initialize until a wakeup() call or the first
         # job is submitted.
-        cls.process_pool()
+        # For thread pools, this is a no-op since thread pool creation is very cheap.
+        if cls.should_use_thread_workers():
+            cls.thread_pool()
+        else:
+            cls.process_pool()
         _compile_end()
 
     @classmethod
@@ -438,8 +487,16 @@ class AsyncCompile:
                         fn_hash: torch._inductor.config.autotune_lookup_table[fn_hash]
                     }
 
-            task = self.process_pool().submit(
-                _worker_compile_triton,
+            # Select appropriate pool and worker function based on mode
+            pool = self.get_worker_pool()
+            worker_fn = (
+                _worker_compile_triton_thread
+                if self.should_use_thread_workers()
+                else _worker_compile_triton
+            )
+
+            task = pool.submit(
+                worker_fn,
                 load_kernel,
                 extra_env,
                 extra_config,
@@ -456,7 +513,10 @@ class AsyncCompile:
                 kernel.set_compile_info(compile_id, is_backward)
                 CompiledTritonKernels.remove_future(source_code)
 
-                kernel.restore_after_unpickle(old_values=None)
+                # Only restore after unpickle in process mode
+                # Thread mode doesn't pickle, so kernel is already in correct state
+                if not self.should_use_thread_workers():
+                    kernel.restore_after_unpickle(old_values=None)
 
                 kernel.precompile(
                     warm_cache_only=False,
