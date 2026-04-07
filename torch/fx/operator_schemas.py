@@ -1,4 +1,3 @@
-# mypy: allow-untyped-defs
 import enum
 import inspect
 import numbers
@@ -39,18 +38,18 @@ class ArgsKwargsPair(NamedTuple):
     kwargs: dict[str, Any]
 
 
-_manual_overrides: dict[Callable, list[inspect.Signature]] = {}
+_manual_overrides: dict[Callable[..., Any], list[inspect.Signature]] = {}
 
 
-def _nonzero_schemas():
+def _nonzero_schemas() -> list[inspect.Signature]:
     signatures = []
 
-    def nonzero(self):
+    def nonzero(self: torch.Tensor) -> None:
         pass
 
     signatures.append(inspect.signature(nonzero))
 
-    def nonzero(self, *, as_tuple: bool):  # type: ignore[no-redef]
+    def nonzero(self: torch.Tensor, *, as_tuple: bool) -> None:  # type: ignore[no-redef]
         pass
 
     signatures.append(inspect.signature(nonzero))
@@ -62,7 +61,7 @@ _manual_overrides[torch.nonzero] = _nonzero_schemas()
 
 
 class _FakeGlobalNamespace:
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name == "torch":
             return torch
         raise RuntimeError("Expected a torch namespace lookup")
@@ -171,12 +170,14 @@ def _torchscript_schema_to_signature(
 
 @compatibility(is_backward_compatible=False)
 def check_for_mutable_operation(
-    target: Callable, args: tuple["Argument", ...], kwargs: dict[str, "Argument"]
-):
+    target: Callable[..., Any],
+    args: tuple["Argument", ...],
+    kwargs: dict[str, "Argument"],
+) -> None:
     signatures, schemas = get_signature_for_torch_op(target, return_schemas=True)
 
     if signatures and schemas:
-        matched_schemas = []
+        matched_schemas: list[tuple[inspect.Signature, torch._C.FunctionSchema]] = []
 
         # Iterate through all of the schema until we find one that matches
         # If one matches, populate `new_args_and_kwargs` with the new args/kwargs
@@ -188,7 +189,7 @@ def check_for_mutable_operation(
             except TypeError:
                 continue
 
-        def throw_if_mutable(schema):
+        def throw_if_mutable(schema: torch._C.FunctionSchema) -> None:
             if schema.is_mutable:
                 raise RuntimeError(
                     f"Tried to trace mutable operation {schema}. FX only supports functional "
@@ -210,7 +211,9 @@ def check_for_mutable_operation(
 
 
 @compatibility(is_backward_compatible=False)
-def get_signature_for_torch_op(op: Callable, return_schemas: bool = False):
+def get_signature_for_torch_op(
+    op: Callable[..., Any], return_schemas: bool = False
+) -> Any:
     """
     Given an operator on the `torch` namespace, return a list of `inspect.Signature`
     objects corresponding to the overloads of that op.. May return `None` if a signature
@@ -245,7 +248,7 @@ def get_signature_for_torch_op(op: Callable, return_schemas: bool = False):
 
 
 @compatibility(is_backward_compatible=False)
-def create_type_hint(x):
+def create_type_hint(x: object) -> object:
     """
     Produces a type hint for the given argument.
 
@@ -262,12 +265,12 @@ def create_type_hint(x):
             # todo(chilli): Figure out the right way for mypy to handle this
             if isinstance(x, list):
 
-                def ret_type(x):
+                def ret_type(x: Any) -> Any:
                     return list[x]  # type: ignore[valid-type]
 
             else:
 
-                def ret_type(x):
+                def ret_type(x: Any) -> Any:
                     return tuple[x, ...]  # type: ignore[valid-type]
 
             if len(x) == 0:
@@ -290,7 +293,7 @@ def create_type_hint(x):
 
 
 @compatibility(is_backward_compatible=False)
-def type_matches(signature_type: Any, argument_type: Any):
+def type_matches(signature_type: Any, argument_type: Any) -> bool:
     sig_origin_type = getattr(signature_type, "__origin__", signature_type)
 
     if signature_type is argument_type:
@@ -317,7 +320,7 @@ def type_matches(signature_type: Any, argument_type: Any):
         if getattr(argument_type, "__origin__", None) is list:
             return issubclass(argument_type.__args__[0], sig_el_type)
 
-        def is_homogeneous_tuple(t):
+        def is_homogeneous_tuple(t: Any) -> bool:
             if getattr(t, "__origin__", None) is not tuple:
                 return False
             contained = t.__args__
@@ -342,7 +345,7 @@ def type_matches(signature_type: Any, argument_type: Any):
 
 @compatibility(is_backward_compatible=False)
 def _normalize_function_or_error(
-    target: Callable,
+    target: Callable[..., Any],
     args: tuple[Any, ...],
     kwargs: dict[str, Any] | None = None,
     arg_types: tuple[Any] | None = None,
@@ -366,7 +369,7 @@ def _normalize_function_or_error(
 
 @compatibility(is_backward_compatible=False)
 def normalize_function(
-    target: Callable,
+    target: Callable[..., Any],
     args: tuple[Any, ...],
     kwargs: dict[str, Any] | None = None,
     arg_types: tuple[Any] | None = None,
@@ -442,7 +445,7 @@ def normalize_function(
         if not callable(target):
             raise AssertionError(f"target must be callable, got {type(target)}")
         torch_op_schemas = get_signature_for_torch_op(target)
-        matched_schemas = []
+        matched_schemas: list[inspect.Signature] = []
         if torch_op_schemas:
             # Iterate through all of the schema until we find one that matches
             # If one matches, populate `new_args_and_kwargs` with the new args/kwargs
