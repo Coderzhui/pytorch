@@ -2608,6 +2608,7 @@ def compile(
     name: str | None = None,
     disable: builtins.bool = False,
     recompile_limit: builtins.int | None = None,
+    isolate_recompiles: builtins.bool = False,
 ) -> (
     _Callable[[_Callable[_InputT, _RetT]], _Callable[_InputT, _RetT]]
     | _Callable[_InputT, _RetT]
@@ -2700,6 +2701,14 @@ def compile(
        name (str or None): Optional identifier for the compiled region. When supported by downstream
         tooling, this is surfaced on wrapped compiled-region higher-order operators and other debug metadata.
        disable (bool): Turn torch.compile() into a no-op for testing
+       recompile_limit (int or None): Maximum number of recompilations allowed for this
+        compiled region before falling back to eager. If None (default), uses the global
+        ``torch._dynamo.config.recompile_limit`` (default 8). With ``fullgraph=True``,
+        exceeding the limit raises ``FailOnRecompileLimitHit``.
+       isolate_recompiles (bool): If True, this ``torch.compile()`` call gets its own
+        isolated cache. Multiple calls to ``torch.compile()`` on the same function will
+        each track recompilations independently, so one region hitting its limit does
+        not affect the others. Default False.
 
     Example::
 
@@ -2738,6 +2747,8 @@ def compile(
                 options=options,
                 name=name,
                 disable=disable,
+                recompile_limit=recompile_limit,
+                isolate_recompiles=isolate_recompiles,
             )
 
         return fn
@@ -2795,6 +2806,7 @@ def compile(
         disable=disable,
         guard_filter_fn=guard_filter_fn,
         recompile_limit=recompile_limit,
+        isolate_recompiles=isolate_recompiles,
     )(model)  # type: ignore[return-value]
 
 
