@@ -1,4 +1,3 @@
-# mypy: allow-untyped-defs
 from typing import Any
 
 import torch
@@ -43,13 +42,13 @@ inplace_ops = {
 
 
 @torch.fx._compatibility.compatibility(is_backward_compatible=False)
-def get_CSE_banned_ops():
+def get_CSE_banned_ops() -> set[Any]:
     return rand_ops.union(inplace_ops)
 
 
 @torch.fx._compatibility.compatibility(is_backward_compatible=False)
 class CSEPass(PassBase):
-    def __init__(self, banned_ops=None):
+    def __init__(self, banned_ops: set[Any] | None = None) -> None:
         """
         This version of CSE Pass aims to be dialect agnostic, and it's implemented purely based on the connectivity between fx.Node.
 
@@ -83,7 +82,7 @@ class CSEPass(PassBase):
         print(result.graph_module)
         """
 
-        def get_aten_target(node):
+        def get_aten_target(node: Node) -> Any:
             if hasattr(node.target, "overloadpacket"):
                 return node.target.overloadpacket
             return node.target
@@ -113,7 +112,7 @@ class CSEPass(PassBase):
             else:  # n.op == 'call_function', should never see n.op == 'call_module' or 'call_method'
                 # substitute args and kwargs members to their mapping in env if exists
                 # specs can be used to reconstruct nested list/dictionaries
-                def substitute(arg_list):
+                def substitute(arg_list: Any) -> tuple[tuple[Any, ...], Any]:
                     arg_list, spec = tree_flatten(arg_list)
                     for i in range(len(arg_list)):
                         v = arg_list[i]

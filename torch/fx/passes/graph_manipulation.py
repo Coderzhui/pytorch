@@ -1,4 +1,3 @@
-# mypy: allow-untyped-defs
 from typing import Any, NamedTuple
 
 import torch
@@ -25,7 +24,7 @@ def replace_target_nodes_with(
     old_target: Target,
     new_op: str,
     new_target: Target,
-):
+) -> None:
     """Modifies all nodes in fx_module.graph.nodes which match the specified op code and target,
     and updates them to match the new op code and target"""
     new_graph = Graph()

@@ -1,6 +1,6 @@
-# mypy: allow-untyped-defs
 import copy
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch.fx
 from torch.fx._compatibility import compatibility
@@ -20,7 +20,7 @@ __all__ = [
 
 
 @compatibility(is_backward_compatible=False)
-def getattr_recursive(obj, name):
+def getattr_recursive(obj: Any, name: str) -> Any:
     for layer in name.split("."):
         if isinstance(obj, torch.nn.ModuleList):
             if hasattr(obj, "_modules") and layer in obj._modules:
@@ -35,7 +35,7 @@ def getattr_recursive(obj, name):
 
 
 @compatibility(is_backward_compatible=False)
-def setattr_recursive(obj, attr, value):
+def setattr_recursive(obj: Any, attr: str, value: Any) -> None:
     if "." not in attr:
         setattr(obj, attr, value)
     else:
@@ -55,13 +55,13 @@ class Component:
     name: str
 
     # Stores the placeholder nodes in `graph`.
-    input_placeholders: list = field(default_factory=list)
+    input_placeholders: list[Any] = field(default_factory=list)
 
     # Store the nodes in original graph that are placeholder in `graph`.
-    orig_inputs: list = field(default_factory=list)
+    orig_inputs: list[Any] = field(default_factory=list)
 
     # Store the nodes in original graph that are outputs in `graph`.
-    orig_outputs: list = field(default_factory=list)
+    orig_outputs: list[Any] = field(default_factory=list)
 
     # Mapping from get_attr node in original graph to get_attr node in `graph`.
     getattr_maps: dict[torch.fx.Node, torch.fx.Node] = field(default_factory=dict)
@@ -217,10 +217,14 @@ def split_by_tags(
             )
 
         # Map a input of `node` to nodes in the component's graph.
-        def remap_func(x):
+        def remap_func(x: torch.fx.Node) -> torch.fx.Node:
             # If input is a get_attr node, copy it to current component's graph.
             # Returns the get_attr node in current component's graph.
             if x.op == "get_attr":
+                if not isinstance(x.target, str):
+                    raise RuntimeError(
+                        f"Expected get_attr node target to be a str, got {type(x.target)}"
+                    )
                 if x not in comp.getattr_maps:
                     comp.getattr_maps[x] = comp.graph.get_attr(
                         x.target, type_expr=x.type
@@ -321,7 +325,7 @@ def split_by_tags(
 
 
 @compatibility(is_backward_compatible=False)
-def move_non_tensor_nodes_on_boundary(subgraphs) -> None:
+def move_non_tensor_nodes_on_boundary(subgraphs: list[Any]) -> None:
     """
     Move non-tensor nodes on the boundary between subgraphs.
 
@@ -391,7 +395,7 @@ def move_non_tensor_nodes_on_boundary(subgraphs) -> None:
         visited = set()
         can_move = True
 
-        def dfs(current_node):
+        def dfs(current_node: torch.fx.Node) -> None:
             nonlocal can_move, nodes_to_move
 
             if current_node in visited:

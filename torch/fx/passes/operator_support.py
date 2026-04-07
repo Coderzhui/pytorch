@@ -1,4 +1,3 @@
-# mypy: allow-untyped-defs
 import abc
 import typing as t
 
@@ -67,7 +66,7 @@ class OperatorSupport(OperatorSupportBase):
 
     _support_dict: SupportDict
 
-    def __init__(self, support_dict: SupportDict | None = None):
+    def __init__(self, support_dict: SupportDict | None = None) -> None:
         self._support_dict = support_dict or {}
 
     def is_node_supported(
@@ -163,7 +162,7 @@ def chain(*op_support: OperatorSupportBase) -> OperatorSupportBase:
     any of it reports False.
     """
 
-    def _chain(submods, node) -> bool:
+    def _chain(submods: t.Mapping[str, torch.nn.Module], node: torch.fx.Node) -> bool:
         return all(x.is_node_supported(submods, node) for x in op_support)
 
     return create_op_support(_chain)
@@ -176,7 +175,9 @@ def any_chain(*op_support: OperatorSupportBase) -> OperatorSupportBase:
     any of it reports True.
     """
 
-    def _any_chain(submods, node) -> bool:
+    def _any_chain(
+        submods: t.Mapping[str, torch.nn.Module], node: torch.fx.Node
+    ) -> bool:
         return any(x.is_node_supported(submods, node) for x in op_support)
 
     return create_op_support(_any_chain)
