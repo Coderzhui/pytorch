@@ -1296,7 +1296,18 @@ static struct TritonKernelCompileInit {{
                 # pyrefly: ignore [bad-argument-type]
                 casted.append(f"({arg_type}){cexpr(new_arg)}")
             call_args_str = ", ".join(casted)
+            enable_kernel_profile = (
+                config.cpp.enable_kernel_profile
+                and sys.platform in ["linux", "win32"]
+            )
+            if enable_kernel_profile:
+                self.writeline("{")
+                self.writeline(
+                    f'RAIIAtenRecordFunctionHandle record_{kernel_name}_("{kernel_name}", nullptr);'
+                )
             self.writeline(f"kernels.{kernel_name}({call_args_str}, {stream});")
+            if enable_kernel_profile:
+                self.writeline("}")
 
     @staticmethod
     def prepare_triton_wrapper_args(
