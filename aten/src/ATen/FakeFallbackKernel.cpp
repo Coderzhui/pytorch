@@ -1,6 +1,8 @@
 #include <ATen/core/dispatch/Dispatcher.h>
+#include <ATen/ops/empty_strided.h>
 #include <c10/core/impl/FakeTensorModeTLS.h>
 #include <c10/core/impl/LocalDispatchKeySet.h>
+#include <c10/core/impl/TorchDispatchModeTLS.h>
 #include <c10/util/irange.h>
 #include <torch/library.h>
 
@@ -115,6 +117,60 @@ static bool needs_transmute(const at::Tensor& t) {
   return t.device().is_meta();
 }
 
+// Takes in real tensor inputs and creates a corresponding meta tensor
+// with the original device
+static at::Tensor real_tensor_to_fake(
+    const at::Tensor& t,
+    const std::shared_ptr<c10::FakeTensorMode>& mode) {
+  auto original_device = t.device();
+  at::Tensor meta_t;
+  {
+    // Exclude Fake key so empty_strided doesn't re-enter fakeFallback
+    c10::impl::ExcludeDispatchKeyGuard guard(
+        c10::DispatchKeySet(c10::DispatchKey::Fake));
+    meta_t = at::empty_strided(
+        t.sizes(), t.strides(), t.options().device(c10::DeviceType::Meta));
+  }
+  if (t.requires_grad()) {
+    meta_t.set_requires_grad(true);
+  }
+  transmute_to_fake(meta_t, original_device, mode);
+  return meta_t;
+}
+
+// C++ equivalent of Python's validate_and_convert_non_fake_tensors.
+static void convert_non_fake_inputs(
+    torch::jit::Stack* stack,
+    size_t arguments_begin,
+    size_t num_arguments,
+    const std::shared_ptr<c10::FakeTensorMode>& mode) {
+  for (const auto idx : c10::irange(num_arguments)) {
+    auto& ivalue = (*stack)[arguments_begin + idx];
+    if (ivalue.isTensor()) {
+      const auto& t = ivalue.toTensor();
+      if (t.defined() && !t.is_fake()) {
+        (*stack)[arguments_begin + idx] = real_tensor_to_fake(t, mode);
+      }
+    } else if (ivalue.isTensorList()) {
+      auto tensors = ivalue.toTensorList();
+      for (const auto i : c10::irange(tensors.size())) {
+        at::Tensor t = tensors[i];
+        if (t.defined() && !t.is_fake()) {
+          tensors[i] = real_tensor_to_fake(t, mode);
+        }
+      }
+    } else if (ivalue.isOptionalTensorList()) {
+      auto opt_tensors = ivalue.toOptionalTensorList();
+      for (const auto i : c10::irange(opt_tensors.size())) {
+        std::optional<at::Tensor> ot = opt_tensors[i];
+        if (ot.has_value() && ot->defined() && !ot->is_fake()) {
+          opt_tensors[i] = real_tensor_to_fake(*ot, mode);
+        }
+      }
+    }
+  }
+}
+
 static void wrap_outputs(
     torch::jit::Stack* stack,
     size_t returns_begin,
@@ -157,8 +213,10 @@ void fakeFallback(
   const auto num_arguments = schema.arguments().size();
   const auto arguments_begin = stack->size() - num_arguments;
 
-  auto fake_device = get_common_device(stack, num_arguments);
   auto mode = c10::impl::FakeTensorModeTLS::get_state();
+  convert_non_fake_inputs(stack, arguments_begin, num_arguments, mode);
+
+  auto fake_device = get_common_device(stack, num_arguments);
 
   if (!fake_device.has_value()) {
     fake_device = rewrite_device_args_to_meta(
