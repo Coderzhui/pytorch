@@ -187,7 +187,15 @@ def tuned_bmm(mat1, mat2, out_dtype=None, *, layout=None):
         kwarg_overrides[aten_handler.uid] = aten_extra_kwargs
 
     if use_triton_template(layout, check_max_autotune=False):
-        templates_to_use.append(bmm_template)
+        # Skip Triton bmm when any input has a broadcast batch dimension
+        # (stride=0).  The Triton bmm template can trigger CUDA IMA during
+        # autotuning with stride-0 inputs; the aten bmm fallback handles
+        # broadcast correctly.
+        has_broadcast_batch = V.graph.sizevars.statically_known_equals(
+            mat1.get_stride()[0], 0
+        ) or V.graph.sizevars.statically_known_equals(mat2.get_stride()[0], 0)
+        if not has_broadcast_batch:
+            templates_to_use.append(bmm_template)
 
     # Single unified call for all templates
     choices.extend(
