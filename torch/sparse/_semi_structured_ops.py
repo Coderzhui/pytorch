@@ -171,7 +171,7 @@ def semi_sparse_addmm(func, types, args=(), kwargs=None) -> torch.Tensor:
             f"expected SparseSemiStructuredTensor, got {type(B_t).__name__}"
         )
     row, _col = A.shape
-    return B_t._mm(A, bias=bias, should_transpose_dense=True).t()
+    return B_t._mm(A, bias=bias, should_transpose_dense=True).t().contiguous()
 
 
 def semi_sparse_linear(func, types, args=(), kwargs=None) -> torch.Tensor:

@@ -814,10 +814,8 @@ def _ensure_cusparselt_mm_registered():
             res = res.t()
         if need_pad:
             out_cols = m if should_transpose_dense else n
-            return res.narrow(1, 0, out_cols).clone(
-                memory_format=torch.contiguous_format
-            )
-        return res.contiguous()
+            return res.narrow(1, 0, out_cols)
+        return res
 
     @cusparselt_mm.register_fake
     def _cusparselt_mm_fake(
