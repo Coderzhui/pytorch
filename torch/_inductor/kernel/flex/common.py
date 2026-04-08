@@ -1,10 +1,9 @@
 # mypy: allow-untyped-defs
 """Common utilities and functions for flex attention kernels"""
 
+import importlib.resources
 import math
 from collections.abc import Sequence
-from functools import partial
-from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 import sympy
@@ -43,7 +42,6 @@ from ...lowering import (
     to_dtype,
 )
 from ...select_algorithm import realize_inputs
-from ...utils import load_template
 
 
 SubgraphResults = list[ComputedBuffer | None] | ComputedBuffer | None
@@ -357,8 +355,14 @@ def next_power_of_two(n):
     return 2 ** math.ceil(math.log2(n))
 
 
-_FLEX_TEMPLATE_DIR = Path(__file__).parent / "templates"
-load_flex_template = partial(load_template, template_dir=_FLEX_TEMPLATE_DIR)
+def load_flex_template(name: str) -> str:
+    """Load flex template file in a PAR-compatible way using importlib.resources."""
+    template_ref = (
+        importlib.resources.files("torch._inductor.kernel.flex")
+        / "templates"
+        / f"{name}.py.jinja"
+    )
+    return template_ref.read_text()
 
 
 # Template strings have been moved to templates/common.py.jinja
