@@ -79,6 +79,7 @@ from torch.testing._internal.common_utils import (
     run_tests,
     skipIfCrossRef,
     skipIfRocm,
+    skipIfTorchDynamo,
     skipIfXpu,
     TEST_TRANSFORMERS,
     TEST_WITH_CROSSREF,
@@ -610,6 +611,35 @@ class TestExport(TestCase):
         f = Module()
         inp = ([torch.ones(1, 3)], torch.ones(1, 3))
         self._test_export_same_as_eager(f, inp)
+
+    @skipIfCrossRef  # CrossRefMode interferes with functorch ops
+    @skipIfTorchDynamo("export inside dynamo is not supported")
+    def test_gradient_tracking_tensors(self) -> None:
+        class JVP(torch.nn.Module):
+            def foo(self, x, r, t) -> torch.Tensor:
+                return x - 0.1 * r + 0.1 * t
+
+            def forward(self, x, y, r, t, z, o) -> tuple[torch.Tensor, torch.Tensor]:
+                return torch.func.jvp(
+                    self.foo,
+                    (x, r, t),
+                    (y, z, o),
+                )
+
+        inp = (
+            torch.rand(2, 4),
+            torch.rand(2, 4),
+            torch.rand(2, 1),
+            torch.rand(2, 1),
+            torch.zeros(2, 1),
+            torch.ones(2, 1),
+        )
+
+        output_before = JVP()(*inp)
+        ep = torch.export.export(JVP(), inp)
+        unf = torch.export.unflatten(ep)
+        output_after = unf(*inp)
+        self.assertTrue(torch.allclose(output_after[1], output_before[1]))
 
     @testing.expectedFailureStrictV2
     @skipIfCrossRef
