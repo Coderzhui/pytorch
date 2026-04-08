@@ -225,6 +225,7 @@ def semi_sparse_scaled_mm(func, types, args=(), kwargs=None) -> torch.Tensor:
         B,
         alpha=A_scale * B_scale,
         out_dtype=out_dtype,
+        alg_id=A.alg_id_cusparselt,
     )
     return sparse_result
 
