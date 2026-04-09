@@ -21,6 +21,7 @@ from .builtin import (
     BaseBuiltinVariable,
     BuiltinVariable,
     DictBuiltinVariable,
+    GetAttrBuiltinVariable,
     IterBuiltinVariable,
     ListBuiltinVariable,
 )
@@ -211,6 +212,7 @@ __all__ = [
     "DictKeySetVariable",
     "DynamoConfigPatchVariable",
     "FakeItemVariable",
+    "GetAttrBuiltinVariable",
     "GetAttrVariable",
     "GradModeVariable",
     "InspectSignatureVariable",
